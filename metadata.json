@@ -1,0 +1,8 @@
+{
+  "name": "Rasoi & Realm",
+  "description": "Global culinary and beverage platform featuring 14-point standardized recipes, Smart Pantry cooking, multi-regional Indian ingredient localization, and cloud-synced recipe collections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

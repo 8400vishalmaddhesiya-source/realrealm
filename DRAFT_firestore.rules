@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+    function isOwner(userId) {
+      return isVerified() && request.auth.uid == userId;
+    }
+
+    // Entity Validation Blueprints
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'preferredLanguage', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 120
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 254
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 512))
+        && (!('preferredLanguage' in data) || (data.preferredLanguage is string && data.preferredLanguage.size() <= 40))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSavedRecipe(data, userId, recipeId) {
+      return data.keys().hasAll(['id', 'ownerId', 'titleEnglish', 'titleNative', 'category', 'region', 'recipePayload', 'savedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'titleEnglish', 'titleNative', 'category', 'region', 'recipePayload', 'savedAt'])
+        && data.id is string
+        && isValidId(data.id)
+        && data.id == recipeId
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.titleEnglish is string
+        && data.titleEnglish.size() >= 1
+        && data.titleEnglish.size() <= 200
+        && data.titleNative is string
+        && data.titleNative.size() >= 1
+        && data.titleNative.size() <= 200
+        && data.category in ['Global Cuisines', 'Indian Regional', 'Global & Regional Beverages']
+        && data.region is string
+        && data.region.size() >= 1
+        && data.region.size() <= 120
+        && data.recipePayload is map
+        && data.recipePayload.keys().size() <= 30
+        && data.savedAt is timestamp;
+    }
+
+    // Private User Profile (PII isolated to owner)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['preferredLanguage', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'photoURL', 'updatedAt'])
+        );
+      allow delete: if false;
+
+      // Personal Saved Recipe Vault Subcollection
+      match /savedRecipes/{recipeId} {
+        allow get: if isValidId(userId) && isValidId(recipeId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(recipeId)
+          && isOwner(userId)
+          && isValidSavedRecipe(incoming(), userId, recipeId)
+          && incoming().savedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isValidId(userId)
+          && isValidId(recipeId)
+          && isOwner(userId)
+          && isValidSavedRecipe(incoming(), userId, recipeId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().savedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['titleEnglish', 'titleNative', 'category', 'region', 'recipePayload', 'savedAt']);
+        allow delete: if isValidId(userId) && isValidId(recipeId) && isOwner(userId);
+      }
+    }
+  }
+}

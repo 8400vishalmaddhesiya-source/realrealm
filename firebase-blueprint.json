@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile storing display metadata and preference settings.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID matching the document ID."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "User's display name from Google Auth."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "User's verified email address."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Profile avatar URL."
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Preferred culinary output language."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update."
+        }
+      },
+      "required": ["uid", "displayName", "email", "createdAt", "updatedAt"]
+    },
+    "SavedRecipe": {
+      "title": "SavedRecipe",
+      "description": "A user-bookmarked or AI-generated 14-point recipe stored in their personal vault.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique recipe identifier matching document ID."
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the vault owner."
+        },
+        "titleEnglish": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "titleNative": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Global Cuisines", "Indian Regional", "Global & Regional Beverages"]
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "recipePayload": {
+          "type": "object",
+          "description": "Structured 14-point Recipe object."
+        },
+        "savedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the recipe was saved."
+        }
+      },
+      "required": ["id", "ownerId", "titleEnglish", "titleNative", "category", "region", "recipePayload", "savedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile document containing PII (email) accessible only to the owning user."
+    },
+    "/users/{userId}/savedRecipes/{recipeId}": {
+      "schema": { "$ref": "#/entities/SavedRecipe" },
+      "description": "User's private saved and AI-generated recipes subcollection."
+    }
+  }
+}
